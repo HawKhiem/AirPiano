@@ -45,6 +45,5 @@ while True:
     # draw the button onto the image every iteration, since each iteration we have a new image
     button.draw(img)
 
-
     cv2.imshow("Image", img)
     cv2.waitKey(1)
