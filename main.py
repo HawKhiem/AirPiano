@@ -4,6 +4,8 @@ import numpy as np
 import os
 from cvzone.HandTrackingModule import HandDetector
 import pygame
+import time
+
 
 sound_folder = "wavPianoSounds"
 
@@ -121,6 +123,23 @@ def isPressed(landmarkList, button):
 # Keep track of currently pressed keys
 pressed_keys = set()
 
+# ---------- Visual Note System ----------
+class VisualNote:
+    def __init__(self, key, start_time, duration):
+        self.key = key
+        self.start_time = start_time
+        self.duration = duration
+
+note_schedule = [
+    VisualNote("C4", 0.0, 10.0),
+    VisualNote("E4", 1.0, 10.0),
+    VisualNote("G4", 2.0, 10.0),
+    VisualNote("C5", 3.0, 10.5),
+]
+
+start_time = time.time()
+# ----------------------------------------
+
 while True:
     # every iteration a new image is drawn
     success, img = cap.read()
@@ -131,6 +150,41 @@ while True:
     img = cv2.flip(img, 1)
 
     img = drawAllTransparent(img, buttons)
+
+    current_time = time.time() - start_time
+
+    # Draw falling note rectangles
+    for note in note_schedule:
+        time_to_note = note.start_time - current_time
+        if time_to_note < -note.duration:
+            continue
+
+        pixels_per_second = 200
+        y_offset = int(time_to_note * pixels_per_second)
+        # the length of the falling rectangle, indicating how long one should hold the key for
+        height = int(note.duration * pixels_per_second)
+
+        # b for b in buttons if b.text == note.key:
+        # This is a generator expression. It loops through all Button objects in buttons and filters for the one where b.text (the button’s label) matches the current note.key.
+        # next(...):
+        # This retrieves the first match from that generator.
+        # None:
+        # If no button matches (e.g., a typo in note.key), it returns None instead of crashing.
+        button = next((b for b in buttons if b.text == note.key), None)
+        if button:
+            x, y = button.position
+            width, _ = button.size
+            # y_offset is the distance to the falling rectangle from the top of each key
+            # 200 is the height of each key
+            top_left = (x, y - height - y_offset)
+            bottom_right = (x + width, y - y_offset)
+            imgNew = np.zeros_like(img, np.uint8)
+            cv2.rectangle(imgNew, top_left, bottom_right, (255, 0, 0), -1)
+            out = img.copy()
+            alpha = 0.5
+            mask = imgNew.astype(bool)
+            out[mask] = cv2.addWeighted(img, alpha, imgNew, 1 - alpha, 0)[mask]
+            img = out
 
     if hands:
         hand1 = hands[0]
