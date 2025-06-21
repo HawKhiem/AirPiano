@@ -9,7 +9,7 @@ sound_folder = "pianoSounds"
 key_sounds = {}
 pygame.mixer.init()
 
-# TODO: List of corresponding keys of the online piano
+# List of corresponding keys of the online piano
 #   keys = ["A0", "A#0", "B0",
 #          "C1", "C#1", "D1", "D#1", "E1", "F1", "F#1", "G1", "G#1", "A1", "A#1", "B1",
 #          "C2", "C#2", "D2", "D#2", "E2", "F2", "F#2", "G2", "G#2", "A2", "A#2", "B2",
@@ -18,6 +18,7 @@ pygame.mixer.init()
 #          "C5", "C#5", "D5", "D#5", "E5", "F5", "F#5", "G5", "G#5", "A5", "A#5", "B5",
 #          "C6", "C#6", "D6"]
 
+# For my sanity, we only need 27 blacks and 39 white buttons (out of 36 blacks and 52 whites)
 keys = ["A0", "Bb0", "B0",
         "C1", "Db1", "D1", "Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1",
         "C2", "Db2", "D2", "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2",
@@ -42,10 +43,13 @@ detector = HandDetector(detectionCon=0.8)
 
 # draw the button onto the image every iteration, since each iteration we have a new image
 def drawAllTransparent(img, buttonList):
+    # Create a new image imgNew with the same shape and type as img,
+    # but filled with zeros (i.e., black and transparent).
     imgNew = np.zeros_like(img, np.uint8)
     for button in buttonList:
         x, y = button.position
         width, height = button.size
+        # draw a fancy rectangle with rounded corners around the button area.
         cvzone.cornerRect(imgNew, (button.position[0], button.position[1], button.size[0], button.size[1]), 20, rt=0)
 
         # button
@@ -57,13 +61,16 @@ def drawAllTransparent(img, buttonList):
             cv2.rectangle(imgNew, button.position, (x + width, y + height), (255, 255, 255), cv2.FILLED)
         # text
         cv2.putText(imgNew, button.text, (x, y + 65), cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 255), 1)
+    # Makes a copy of the original image to store the output.
     out = img.copy()
+    # Sets transparency level (0.5 means 50% transparent blend).
     alpha = 0.5
+    # Converts imgNew to a boolean mask: pixels that are non-zero (i.e., where buttons were drawn) become True.
     mask = imgNew.astype(bool)
+    # Blends img and imgNew only where the mask is True.
     out[mask] = cv2.addWeighted(img, alpha, imgNew, 1 - alpha, 0)[mask]
     return out
 
-# TODO: We need 27 blacks and 39 white buttons (out of 36 blacks and 52 whites)
 class Button:
     # similar to java constructor
     def __init__(self, position, text, size=None):
@@ -84,15 +91,19 @@ for x, key in enumerate(keys):
     buttons.append(Button([38 * x + 19, 1240], key))
 
 def isPressed(landmarkList, button):
+    # flip horizontally by taking the difference from 2560 (which is the width of the display screen)
     x, y = button.position
     width, height = button.size
-    # flip horizontally by taking the difference from 2560 (which is the width of the display screen)
-    return ((x < 2560 - landmarkList[4][0] < x + width and y < landmarkList[4][1] < y + height) or
-                    (x < 2560 - landmarkList[8][0] < x + width and y < landmarkList[8][1] < y + height) or
-                    (x < 2560 - landmarkList[12][0] < x + width and y < landmarkList[12][1] < y + height) or
-                    (x < 2560 - landmarkList[16][0] < x + width and y < landmarkList[16][1] < y + height) or
-                    (x < 2560 - landmarkList[20][0] < x + width and y < landmarkList[20][1] < y + height))
+    # landmarkList[8] is the index finger, 12 is the middle, etc.
+    # see https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
+    for i in [4, 8, 12, 16, 20]:
+        px, py = 2560 - landmarkList[i][0], landmarkList[i][1]
+        if x < px < x + width and y < py < y + height:
+            return True
+    return False
 
+# Keep track of currently pressed keys
+pressed_keys = set()
 
 while True:
     # every iteration a new image is drawn
@@ -116,20 +127,33 @@ while True:
 
         # check if finger clicking a button
         for button in buttons:
+            key = button.text
             x, y = button.position
             width, height = button.size
-            # landmarkList[8] is the index finger, 12 is the middle, etc.
-            # see https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
-            if (isPressed(landmarkList1, button)) or (len(hands) == 2 and isPressed(landmarkList2, button)):
-                # pressed buttons are colored green
-                cv2.rectangle(img, button.position, (x + width, y + height), (0, 255, 0), cv2.FILLED)
-                cv2.putText(img, button.text, (x, y + 65), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
 
-                # play the sound of the pressed key
-                sound = key_sounds.get(button.text)
-                if sound:
-                    sound.play()
-                    print(f"{button.text} pressed")
+            if (isPressed(landmarkList1, button)) or (len(hands) == 2 and isPressed(landmarkList2, button)):
+                # replay the key from the start when it is pressed again (finger move out of detection zone then back)
+                # simulating the holding the key behaviour (sound is played till the end when key is hold)
+                if key not in pressed_keys:
+                    pressed_keys.add(key)
+                    sound = key_sounds.get(key)
+                    if sound:
+                        sound.play()
+                        print(f"{key} pressed")
+
+                # pressed buttons are colored green
+                imgNew = np.zeros_like(img, np.uint8)
+                cv2.rectangle(imgNew, button.position, (x + width, y + height), (0, 255, 0), cv2.FILLED)
+                cv2.putText(imgNew, key, (x, y + 65), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
+                out = img.copy()
+                alpha = 0.5
+                mask = imgNew.astype(bool)
+                out[mask] = cv2.addWeighted(img, alpha, imgNew, 1 - alpha, 0)[mask]
+                img = out
+            else:
+                if key in pressed_keys:
+                    pressed_keys.remove(key)
+
 
     cv2.imshow("Image", img)
     cv2.waitKey(1)
