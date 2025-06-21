@@ -9,7 +9,7 @@ sound_folder = "wavPianoSounds"
 
 # Initialize Pygame Mixer with increased buffer and channels
 pygame.mixer.init(buffer=512)
-pygame.mixer.set_num_channels(330)  # 66 keys * 5 channels per key
+pygame.mixer.set_num_channels(300)  # 60 keys * 5 channels per key
 
 # python dictionaries - pretty much like a hashmap in goofy java
 key_sounds = {}
@@ -27,14 +27,12 @@ channels_per_key = 5
 #          "C6", "C#6", "D6"]
 
 
-# For my sanity, we only need 27 blacks and 39 white buttons (out of 36 blacks and 52 whites) :))
-keys = ["A0", "Bb0", "B0",
-        "C1", "Db1", "D1", "Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1",
-        "C2", "Db2", "D2", "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2",
-        "C3", "Db3", "D3", "Eb3", "E3", "F3", "Gb3", "G3", "Ab3", "A3", "Bb3", "B3",
-        "C4", "Db4", "D4", "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4",
-        "C5", "Db5", "D5", "Eb5", "E5", "F5", "Gb5", "G5", "Ab5", "A5", "Bb5", "B5",
-        "C6", "Db6", "D6"]
+# For my sanity, we only need 25 blacks and 35 white buttons (out of 36 blacks and 52 whites) :))
+keys = ["Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", "Db2", "D2",
+        "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2", "C3", "Db3", "D3",
+        "Eb3", "E3", "F3", "Gb3", "G3", "Ab3", "A3", "Bb3", "B3", "C4", "Db4", "D4",
+        "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4", "C5", "Db5", "D5",
+        "Eb5", "E5", "F5", "Gb5", "G5", "Ab5", "A5", "Bb5", "B5", "C6", "Db6", "D6"]
 
 channel_counter = 0
 for key in keys:
@@ -95,7 +93,7 @@ class Button:
     # similar to java constructor
     def __init__(self, position, text, size=None):
         if size is None:
-            size = [35, 200]
+            size = [40, 200]
         self.position = position
         self.text = text
         self.size = size
@@ -106,7 +104,7 @@ buttons = []
 # cool way in python to keep track of the index when iterate using enhanced for loop
 for x, key in enumerate(keys):
     # size is none -> default size is used
-    buttons.append(Button([38 * x + 19, 1240], key))
+    buttons.append(Button([42 * x + 20, 1240], key))
 
 def isPressed(landmarkList, button):
     # flip horizontally by taking the difference from 2560 (which is the width of the display screen)
