@@ -20,13 +20,11 @@ key_channel_index = {}
 channels_per_key = 5
 
 # List of corresponding keys of the online piano
-#   keys = ["A0", "A#0", "B0",
-#          "C1", "C#1", "D1", "D#1", "E1", "F1", "F#1", "G1", "G#1", "A1", "A#1", "B1",
-#          "C2", "C#2", "D2", "D#2", "E2", "F2", "F#2", "G2", "G#2", "A2", "A#2", "B2",
-#          "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3",
-#          "C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4",
-#          "C5", "C#5", "D5", "D#5", "E5", "F5", "F#5", "G5", "G#5", "A5", "A#5", "B5",
-#          "C6", "C#6", "D6"]
+#   keys = ["D#1", "E1", "F1", "F#1", "G1", "G#1", "A1", "A#1", "B1", "C2", "C#2", "D2",
+#           "D#2", "E2", "F2", "F#2", "G2", "G#2", "A2", "A#2", "B2", "C3", "C#3", "D3",
+#           "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3", "C4", "C#4", "D4",
+#           "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4", "C5", "C#5", "D5",
+#           "D#5", "E5", "F5", "F#5", "G5", "G#5", "A5", "A#5", "B5", "C6", "C#6", "D6"]
 
 
 # For my sanity, we only need 25 blacks and 35 white buttons (out of 36 blacks and 52 whites) :))
@@ -120,25 +118,20 @@ def isPressed(landmarkList, button):
             return True
     return False
 
+
 # Keep track of currently pressed keys
 pressed_keys = set()
 
-# ---------- Visual Note System ----------
-class VisualNote:
-    def __init__(self, key, start_time, duration):
-        self.key = key
-        self.start_time = start_time
-        self.duration = duration
-
-note_schedule = [
-    VisualNote("C4", 0.0, 10.0),
-    VisualNote("E4", 1.0, 10.0),
-    VisualNote("G4", 2.0, 10.0),
-    VisualNote("C5", 3.0, 10.5),
-]
-
 start_time = time.time()
-# ----------------------------------------
+# ------------------- Fix: Overlay Video Playback in Real-Time ---------------------
+# Load video and get FPS
+video = cv2.VideoCapture("piano_visualizer.mp4")
+video_fps = video.get(cv2.CAP_PROP_FPS)
+print(video_fps)
+frame_interval = 1.0 / video_fps
+last_video_frame_time = time.time()
+last_overlay_frame = None
+# ----------------------------------------------------------------------------------
 
 while True:
     # every iteration a new image is drawn
@@ -150,41 +143,6 @@ while True:
     img = cv2.flip(img, 1)
 
     img = drawAllTransparent(img, buttons)
-
-    current_time = time.time() - start_time
-
-    # Draw falling note rectangles
-    for note in note_schedule:
-        time_to_note = note.start_time - current_time
-        if time_to_note < -note.duration:
-            continue
-
-        pixels_per_second = 200
-        y_offset = int(time_to_note * pixels_per_second)
-        # the length of the falling rectangle, indicating how long one should hold the key for
-        height = int(note.duration * pixels_per_second)
-
-        # b for b in buttons if b.text == note.key:
-        # This is a generator expression. It loops through all Button objects in buttons and filters for the one where b.text (the button’s label) matches the current note.key.
-        # next(...):
-        # This retrieves the first match from that generator.
-        # None:
-        # If no button matches (e.g., a typo in note.key), it returns None instead of crashing.
-        button = next((b for b in buttons if b.text == note.key), None)
-        if button:
-            x, y = button.position
-            width, _ = button.size
-            # y_offset is the distance to the falling rectangle from the top of each key
-            # 200 is the height of each key
-            top_left = (x, y - height - y_offset)
-            bottom_right = (x + width, y - y_offset)
-            imgNew = np.zeros_like(img, np.uint8)
-            cv2.rectangle(imgNew, top_left, bottom_right, (255, 0, 0), -1)
-            out = img.copy()
-            alpha = 0.5
-            mask = imgNew.astype(bool)
-            out[mask] = cv2.addWeighted(img, alpha, imgNew, 1 - alpha, 0)[mask]
-            img = out
 
     if hands:
         hand1 = hands[0]
@@ -215,7 +173,6 @@ while True:
                         ch = channels[idx]
                         ch.play(sound)
                         key_channel_index[key] = (idx + 1) % channels_per_key
-                        print(f"{key} pressed")
 
                 # pressed buttons are colored green, the lengthy code is for making the pressed key transparent :))
                 imgNew = np.zeros_like(img, np.uint8)
@@ -230,6 +187,25 @@ while True:
                 if key in pressed_keys:
                     pressed_keys.remove(key)
 
+    # ----------- Real-Time Overlay Video Logic -----------
+    now = time.time()
+    if now - last_video_frame_time >= frame_interval:
+        ret, overlay_frame = video.read()
+        if not ret:
+            video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, overlay_frame = video.read()
+        if ret:
+            overlay_frame = cv2.resize(overlay_frame, (2560, 1440))
+            last_overlay_frame = overlay_frame
+        last_video_frame_time = now
 
+    if last_overlay_frame is not None:
+        img = cv2.addWeighted(img, 1.0, last_overlay_frame, 0.6, 0)
+    # -----------------------------------------------------
+    # === FPS Calculation ===
+    fps_time = time.time()
+    fps = 1 / (fps_time - start_time)
+    start_time = fps_time
+    print(f"FPS: {fps:.2f}")
     cv2.imshow("Image", img)
     cv2.waitKey(1)
