@@ -6,6 +6,8 @@ from cvzone.HandTrackingModule import HandDetector
 import pygame
 import time
 import threading
+from collections import deque
+from queue import Queue
 
 # ---- Init Pygame Sound System ----
 pygame.mixer.init(buffer=512)
@@ -64,11 +66,19 @@ def is_pressed(landmarks, button):
     x, y, w, h = *button.position, *button.size
     return any(x < lm[0] < x + w and y < lm[1] < y + h for i, lm in enumerate(landmarks) if i in [4, 8, 12, 16, 20])
 
-def play_note(key):
-    if key in key_sounds:
-        idx = key_channel_index[key]
-        key_channels[key][idx].play(key_sounds[key])
-        key_channel_index[key] = (idx + 1) % CHANNELS_PER_KEY
+# ---- Decouple Sound Playback via Queue (Optional) ----
+note_queue = Queue()
+
+def sound_player_thread():
+    while True:
+        key = note_queue.get()
+        if key in key_sounds:
+            idx = key_channel_index[key]
+            key_channels[key][idx].play(key_sounds[key])
+            key_channel_index[key] = (idx + 1) % CHANNELS_PER_KEY
+        note_queue.task_done()
+
+threading.Thread(target=sound_player_thread, daemon=True).start()
 
 # ---- Multithreaded Overlay Video ----
 overlay_frame = None
@@ -85,18 +95,39 @@ def overlay_video_thread(video_path):
         frame = cv2.resize(frame, (2560, 1440))
         with overlay_lock:
             overlay_frame = frame
-        time.sleep(1 / 30)  # ~30 FPS
+        time.sleep(1 / 30)  # ~30 FPS for visualizer
 
 threading.Thread(target=overlay_video_thread, args=(VIDEO_OVERLAY_PATH,), daemon=True).start()
 
-# ---- Main Loop ----
+# ---- Multithreaded Hand Detection ----
+frame_queue = deque(maxlen=1)     # Only keep the most recent frame
+hand_data = {}
+hand_lock = threading.Lock()
+
+def hand_detection_thread():
+    while True:
+        if frame_queue:
+            frame = frame_queue[-1]
+            hands, _ = detector.findHands(frame, draw=False)
+            with hand_lock:
+                hand_data["hands"] = hands
+        time.sleep(0.01)  # Adjust based on CPU load
+
+threading.Thread(target=hand_detection_thread, daemon=True).start()
+
+# ---- Main Rendering Loop ----
 while True:
     success, img = cap.read()
     if not success:
         break
-
     img = cv2.flip(img, 1)
-    hands, img = detector.findHands(img)
+
+    # Push latest frame into queue for background hand detection
+    frame_queue.append(img.copy())
+
+    # Get detected hands from shared object
+    with hand_lock:
+        hands = hand_data.get("hands", [])
 
     # Draw piano buttons
     img = draw_transparent_overlay(img, [
@@ -109,7 +140,7 @@ while True:
         ) for b in buttons
     ])
 
-    # Check key presses
+    # Check key presses using shared hand detection data
     for button in buttons:
         key = button.text
         active = False
@@ -118,7 +149,7 @@ while True:
                 active = True
                 if key not in pressed_keys:
                     pressed_keys.add(key)
-                    play_note(key)
+                    note_queue.put(key)  # Use the sound thread
                 break
         if active:
             img = draw_transparent_overlay(img, [
@@ -141,7 +172,7 @@ while True:
         alpha = 0.6
         img = cv2.addWeighted(img, 1.0, current_overlay, alpha, 0)
 
-    # Show final output
+    # Display final result
     cv2.imshow("Air Piano 🎹", img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
