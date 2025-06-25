@@ -19,6 +19,7 @@ class VisualNote:
 
 # Scheduled notes
 # TODO: Check name and time of keys in the first 9 blocks
+#  Check starting time of some blocks/notes. Listen to sound test to determine
 note_schedule = [
     VisualNote("Db2", 7.43, 1.7),
     VisualNote("Db3", 7.43, 1.7),
