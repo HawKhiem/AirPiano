@@ -18,63 +18,64 @@ class VisualNote:
         self.duration = duration
 
 # Scheduled notes
+# TODO: Check name and time of keys in the first 9 blocks
 note_schedule = [
-    VisualNote("Db2", 7.5, 1.5),
-    VisualNote("Db3", 7.5, 1.5),
-    VisualNote("E3", 7.5, 1.5),
-    VisualNote("Ab3", 7.5, 1.5),
-    VisualNote("Db4", 7.5, 1.5),
+    VisualNote("Db2", 7.43, 1.7),
+    VisualNote("Db3", 7.43, 1.7),
+    VisualNote("E3", 7.43, 1.7),
+    VisualNote("Ab3", 7.43, 1.7),
+    VisualNote("Db4", 7.43, 1.7),
 
-    VisualNote("Ab1", 10, 1.5),
-    VisualNote("Ab2", 10, 1.5),
-    VisualNote("B2", 10, 1.5),
-    VisualNote("Eb3", 10, 1.5),
-    VisualNote("Ab3", 10, 1.5),
+    VisualNote("Ab1", 9.93, 1.73),
+    VisualNote("Ab2", 9.93, 1.73),
+    VisualNote("B2", 9.93, 1.73),
+    VisualNote("Eb3", 9.93, 1.73),
+    VisualNote("Ab3", 9.93, 1.73),
 
-    VisualNote("B1", 12.5, 1.5),
-    VisualNote("B2", 12.5, 1.5),
-    VisualNote("Gb3", 12.5, 1.5),
-    VisualNote("Ab3", 12.5, 1.5),
-    VisualNote("B3", 12.5, 1.5),
+    VisualNote("B1", 12.43, 1.5),
+    VisualNote("B2", 12.43, 1.5),
+    VisualNote("Gb3", 12.43, 1.5),
+    VisualNote("Ab3", 12.43, 1.5),
+    VisualNote("B3", 12.43, 1.5),
 
-    VisualNote("Ab1", 15, 1.5),
-    VisualNote("Ab2", 15, 1.5),
-    VisualNote("Db3", 15, 1.5),
-    VisualNote("Eb3", 15, 1.5),
-    VisualNote("Ab3", 15, 1.5),
+    VisualNote("Gb1", 14.87, 1.47),
+    VisualNote("Gb2", 14.87, 1.47),
+    VisualNote("Bb2", 14.87, 1.47),
+    VisualNote("Db3", 14.87, 1.47),
+    VisualNote("Gb3", 14.87, 1.47),
 
-    VisualNote("Eb2", 17.2, 1.57),
-    VisualNote("Eb3", 17.2, 1.4),
-    VisualNote("E3", 17.2, 0.8),
-    VisualNote("Bb3", 17.2, 1.2),
-    VisualNote("Eb4", 17.2, 1.2),
+    VisualNote("Db2", 17.23, 1.57),
+    VisualNote("Db3", 17.23, 1.4),
+    VisualNote("E3", 17.23, 0.8),
+    VisualNote("Ab3", 17.23, 1.2),
+    VisualNote("Db4", 17.23, 1.2),
     VisualNote("E3", 18.4, 1.5),
 
-    VisualNote("Bb1", 19.5, 1.3),
-    VisualNote("Bb2", 19.6, 1.3),
+    VisualNote("Ab1", 19.5, 1.3),
+    VisualNote("Ab2", 19.6, 1.3),
     VisualNote("B2", 19.6, 1.2),
-    VisualNote("Gb3", 19.6, 1.3),
-    VisualNote("F3", 19, 0.3),
-    VisualNote("Ab3", 19.3, 0.1),
+    VisualNote("Eb3", 19.6, 1.3),
+    VisualNote("F3", 18.93, 0.3),
+    VisualNote("Gb3", 19.3, 0.1),
     VisualNote("G3", 19.4, 0.3),
-    VisualNote("Bb3", 19.6, 1.4),
+    VisualNote("Ab3", 19.6, 1.4),
 
     VisualNote("B1", 21.8, 1.7),
     VisualNote("B2", 21.8, 1.5),
-    VisualNote("Gb3", 21.8, 1.3),
-    VisualNote("Ab3", 21.8, 0.8),
+    VisualNote("Eb3", 21.8, 1.3),
+    VisualNote("Gb3", 21.8, 0.8),
     VisualNote("B3", 21.8, 1.3),
-    VisualNote("Ab3", 23, 0.3),
+    VisualNote("Gb3", 23, 0.3),
 
     VisualNote("G3", 23.5, 0.3),
-    VisualNote("Bb3", 23.8, 0.2),
+    VisualNote("Ab3", 23.8, 0.2),
     VisualNote("A3", 23.85, 0.1),
 
-    VisualNote("Ab1", 24.1, 1.63),
-    VisualNote("Ab2", 24.2, 1.56),
-    VisualNote("Eb3", 24.16, 2.17),
-    VisualNote("Ab3", 24.16, 2.31),
-    VisualNote("Db4", 24.16, 2.31),
+    VisualNote("Gb1", 24.1, 1.63),
+    VisualNote("Gb2", 24.2, 1.56),
+    VisualNote("Db3", 24.16, 2.17),
+    VisualNote("Gb3", 24.16, 2.31),
+    VisualNote("Bb3", 24.16, 2.31),
 
     VisualNote("Ab1", 26.43, 1.5),
     VisualNote("Ab2", 26.43, 1.5),
@@ -659,6 +660,8 @@ note_schedule = [
     VisualNote("Db4", 148.43, 0.13),
     VisualNote("Eb4", 147.63, 0.37),
 ]
+
+# 00:02:28:17
 
 # Define button class (keys)
 class Button:
