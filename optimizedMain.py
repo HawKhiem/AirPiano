@@ -95,7 +95,7 @@ def overlay_video_thread(video_path):
         frame = cv2.resize(frame, (2560, 1440))
         with overlay_lock:
             overlay_frame = frame
-        time.sleep(1 / 30)  # ~30 FPS for visualizer
+        time.sleep(1 / 90)  # ~30 FPS for visualizer
 
 threading.Thread(target=overlay_video_thread, args=(VIDEO_OVERLAY_PATH,), daemon=True).start()
 
@@ -108,10 +108,11 @@ def hand_detection_thread():
     while True:
         if frame_queue:
             frame = frame_queue[-1]
-            hands, _ = detector.findHands(frame, draw=False)
+            hands, img_with_hands = detector.findHands(frame, draw=True)
             with hand_lock:
                 hand_data["hands"] = hands
-        time.sleep(0.01)  # Adjust based on CPU load
+                hand_data["img_with_hands"] = img_with_hands
+        time.sleep(0.01)
 
 threading.Thread(target=hand_detection_thread, daemon=True).start()
 
@@ -128,7 +129,7 @@ while True:
     # Get detected hands from shared object
     with hand_lock:
         hands = hand_data.get("hands", [])
-
+        img = hand_data.get("img_with_hands", img)  # Fallback to original if not ready
     # Draw piano buttons
     img = draw_transparent_overlay(img, [
         lambda im, b=b: (

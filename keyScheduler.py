@@ -660,9 +660,40 @@ note_schedule = [
     VisualNote("Db4", 147.9, 0.3),
     VisualNote("Db4", 148.43, 0.13),
     VisualNote("Eb4", 147.63, 0.37),
+
+    VisualNote("Db2", 148.73, 1.17),
+    VisualNote("Db3", 148.73, 1.27),
+    VisualNote("Ab3", 149, 0.33),
+    VisualNote("Ab3", 149.9, 0.33),
+    VisualNote("B3", 149.33, 0.6),
+    VisualNote("Db4", 148.73, 0.6),
+
+    VisualNote("Ab1", 151.03, 0.43),
+    VisualNote("Ab1", 151.6, 1.2),
+    VisualNote("Eb2", 150.47, 0.2),
+    VisualNote("Ab2", 151.03, 0.43),
+    VisualNote("Ab2", 151.6, 1.27),
+    VisualNote("Eb3", 150.47, 0.1),
+    VisualNote("Ab3", 151.33, 0.4),
+    VisualNote("B3", 150.5, 0.4),
+    VisualNote("B3", 151.6, 0.6),
+    VisualNote("B3", 152.73, 0.4),
+    VisualNote("Db4", 150.8, 0.2),
+    VisualNote("Db4", 152.13, 0.3),
+    VisualNote("Db4", 153, 0.13),
+    VisualNote("D4", 150.9, 0.23),
+    VisualNote("Eb4", 151.06, 0.6),
+    VisualNote("Eb4", 152.17, 0.37),
+
+    VisualNote("B1", 153.3, 1.67),
+    VisualNote("B2", 153.3, 1.5),
+    VisualNote("Ab3", 153.6, 0.33),
+    VisualNote("Ab3", 154.4, 0.23),
+    VisualNote("B3", 153.87,  0.6),
+    VisualNote("Db4", 153.3, 0.4),
 ]
 
-# 00:02:28:17
+# 00:02:34:29
 
 # Define button class (keys)
 class Button:
