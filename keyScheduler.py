@@ -755,7 +755,6 @@ note_schedule = [
     VisualNote("Db5", 165.67, 0.37),
     VisualNote("Db5", 166.2, 0.1),
     VisualNote("Eb5", 165.4, 0.4),
-
 ]
 # 00:02:46:14
 
