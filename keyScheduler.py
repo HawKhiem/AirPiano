@@ -747,7 +747,7 @@ note_schedule = [
     VisualNote("Gb2", 164.37, 0.27),
     VisualNote("Gb2", 164.9, 0.13),
     VisualNote("Db4", 164.37, 0.27),
-    VisualNote("Db4", 164.9, ),
+    VisualNote("Db4", 164.9, 0.13),
     VisualNote("Eb4", 165.4, 0.33),
     VisualNote("Gb4", 164.37, 0.6),
     VisualNote("G4", 164.9, 0.17),
