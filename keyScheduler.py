@@ -1062,7 +1062,7 @@ buttons = [Button([42 * i + 20, 1240], key) for i, key in enumerate(keys)]
 # Initialize video writer
 frame_width, frame_height = 2560, 1440
 fps = 30
-duration = 150  # seconds, adjust as needed
+duration = 250  # seconds, adjust as needed
 output_path = "visualizer.mp4"
 out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 

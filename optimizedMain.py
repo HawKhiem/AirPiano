@@ -2,20 +2,20 @@ import cv2
 import cvzone
 import numpy as np
 import os
-from cvzone.HandTrackingModule import HandDetector
 import pygame
 import time
 import threading
-from collections import deque
-from queue import Queue
+from cvzone.HandTrackingModule import HandDetector
 
-# ---- Init Pygame Sound System ----
-pygame.mixer.init(buffer=512)
-pygame.mixer.set_num_channels(300)
-
+# ========== Config ========== #
+CAM_WIDTH, CAM_HEIGHT = 2560, 1440
 SOUND_FOLDER = "wavPianoSounds"
 CHANNELS_PER_KEY = 5
-VIDEO_OVERLAY_PATH = "piano_visualizer.mp4"
+DETECTION_CONFIDENCE = 0.8
+
+# ========== Sound Setup ========== #
+pygame.mixer.init(buffer=512)
+pygame.mixer.set_num_channels(300)
 
 keys = ["Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", "Db2", "D2",
         "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2", "C3", "Db3", "D3",
@@ -23,9 +23,11 @@ keys = ["Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", "Db2", "
         "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4", "C5", "Db5", "D5",
         "Eb5", "E5", "F5", "Gb5", "G5", "Ab5", "A5", "Bb5", "B5", "C6", "Db6", "D6"]
 
-# ---- Load Sounds ----
-key_sounds, key_channels, key_channel_index = {}, {}, {}
+key_sounds = {}
+key_channels = {}
+key_channel_index = {}
 channel_counter = 0
+
 for key in keys:
     path = os.path.join(SOUND_FOLDER, f"{key}.wav")
     if os.path.exists(path):
@@ -34,149 +36,203 @@ for key in keys:
         key_channel_index[key] = 0
         channel_counter += CHANNELS_PER_KEY
     else:
-        print(f"Warning: {key} sound not found.")
+        print(f"Warning: Missing sound: {key}")
 
-# ---- Webcam & Hand Detector ----
-cap = cv2.VideoCapture(0)
-cap.set(3, 2560)
-cap.set(4, 1440)
-detector = HandDetector(detectionCon=0.8)
+# ========== Video Stream Class ========== #
+class VideoStream:
+    def __init__(self, path, width, height):
+        self.cap = cv2.VideoCapture(path)
+        self.width = width
+        self.height = height
+        self.frame = None
+        self.stopped = False
+        self.lock = threading.Lock()
 
-# ---- Piano UI Setup ----
+        # Get video FPS
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.delay = 1.0 / self.fps if self.fps > 0 else 1.0 / 30  # fallback
+
+    def start(self):
+        threading.Thread(target=self.update, daemon=True).start()
+        return self
+
+    def update(self):
+        while not self.stopped:
+            start_time = time.time()
+            ret, frame = self.cap.read()
+            if not ret:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+            if ret:
+                frame = cv2.resize(frame, (self.width, self.height))
+                with self.lock:
+                    self.frame = frame
+
+            # Throttle to video FPS
+            elapsed = time.time() - start_time
+            time_to_wait = self.delay - elapsed
+            if time_to_wait > 0:
+                time.sleep(time_to_wait)
+
+    def read(self):
+        with self.lock:
+            return self.frame.copy() if self.frame is not None else None
+
+    def stop(self):
+        self.stopped = True
+        self.cap.release()
+
+
+# ========== Button Class ========== #
 class Button:
-    def __init__(self, pos, text, size=(40, 200)):
-        self.position = pos
+    def __init__(self, position, text, size=None):
+        self.position = position
         self.text = text
-        self.size = size
+        self.size = size if size else [40, 200]
 
-buttons = [Button([42 * i + 20, 1240], key) for i, key in enumerate(keys)]
-pressed_keys = set()
-
-# ---- Helpers ----
-def draw_transparent_overlay(img, overlays):
-    img_new = np.zeros_like(img, np.uint8)
-    for overlay in overlays:
-        overlay(img_new)
-    out = img.copy()
-    mask = img_new.astype(bool)
-    out[mask] = cv2.addWeighted(img, 0.5, img_new, 0.5, 0)[mask]
-    return out
+def draw_buttons(img, button_list):
+    imgNew = np.zeros_like(img, np.uint8)
+    for button in button_list:
+        x, y = button.position
+        w, h = button.size
+        color = (0, 0, 0) if "b" in button.text else (255, 255, 255)
+        cvzone.cornerRect(imgNew, (x, y, w, h), 20, rt=0)
+        cv2.rectangle(imgNew, (x, y), (x + w, y + h), color, cv2.FILLED)
+        cv2.putText(imgNew, button.text, (x, y + 65), cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 255), 1)
+    mask = imgNew.astype(bool)
+    img[mask] = cv2.addWeighted(img, 0.5, imgNew, 0.5, 0)[mask]
+    return img
 
 def is_pressed(landmarks, button):
-    x, y, w, h = *button.position, *button.size
-    return any(x < lm[0] < x + w and y < lm[1] < y + h for i, lm in enumerate(landmarks) if i in [4, 8, 12, 16, 20])
+    x, y = button.position
+    w, h = button.size
+    for i in [4, 8, 12, 16, 20]:
+        px, py = CAM_WIDTH - landmarks[i][0], landmarks[i][1]
+        if x < 2560 - px < x + w and y < py < y + h:
+            return True
+    return False
 
-# ---- Decouple Sound Playback via Queue (Optional) ----
-note_queue = Queue()
+# ========== Threaded Hand Tracking ========== #
+class HandTrackingThread(threading.Thread):
+    def __init__(self, cap, buttons, detector):
+        super().__init__(daemon=True)
+        self.cap = cap
+        self.buttons = buttons
+        self.detector = detector
+        self.pressed_keys = set()
+        self.running = True
+        self.lock = threading.Lock()
+        self.latest_landmarks = []  # Store landmarks for drawing
 
-def sound_player_thread():
+    def run(self):
+        while self.running:
+            success, frame = self.cap.read()
+            if not success:
+                continue
+            frame = cv2.flip(frame, 1)
+            hands, _ = self.detector.findHands(frame)
+
+            current_pressed = set()
+            if hands:
+                lms1 = hands[0]["lmList"]
+                lms2 = hands[1]["lmList"] if len(hands) == 2 else []
+
+                for button in self.buttons:
+                    if is_pressed(lms1, button) or (lms2 and is_pressed(lms2, button)):
+                        current_pressed.add(button.text)
+
+            with self.lock:
+                self.pressed_keys = current_pressed
+                self.latest_landmarks = [hand["lmList"] for hand in hands] if hands else []
+
+    def get_pressed_keys(self):
+        with self.lock:
+            return self.pressed_keys.copy()
+
+    def get_landmarks(self):
+        with self.lock:
+            return self.latest_landmarks.copy()
+
+    def stop(self):
+        self.running = False
+
+
+# ========== Main Program ========== #
+def main():
+    cap = cv2.VideoCapture(0)
+    cap.set(3, CAM_WIDTH)
+    cap.set(4, CAM_HEIGHT)
+
+    detector = HandDetector(detectionCon=DETECTION_CONFIDENCE)
+    buttons = [Button([42 * x + 20, 1240], key) for x, key in enumerate(keys)]
+    video_stream = VideoStream("piano_visualizer.mp4", CAM_WIDTH, CAM_HEIGHT).start()
+    hand_thread = HandTrackingThread(cap, buttons, detector)
+    hand_thread.start()
+
+    prev_time = time.time()
+    played_keys = set()
+
     while True:
-        key = note_queue.get()
-        if key in key_sounds:
-            idx = key_channel_index[key]
-            key_channels[key][idx].play(key_sounds[key])
-            key_channel_index[key] = (idx + 1) % CHANNELS_PER_KEY
-        note_queue.task_done()
-
-threading.Thread(target=sound_player_thread, daemon=True).start()
-
-# ---- Multithreaded Overlay Video ----
-overlay_frame = None
-overlay_lock = threading.Lock()
-
-def overlay_video_thread(video_path):
-    global overlay_frame
-    video = cv2.VideoCapture(video_path)
-    while True:
-        ret, frame = video.read()
+        ret, img = cap.read()
         if not ret:
-            video.set(cv2.CAP_PROP_POS_FRAMES, 0)
             continue
-        frame = cv2.resize(frame, (2560, 1440))
-        with overlay_lock:
-            overlay_frame = frame
-        time.sleep(1 / 90)  # ~30 FPS for visualizer
+        img = cv2.flip(img, 1)
+        img = draw_buttons(img, buttons)
 
-threading.Thread(target=overlay_video_thread, args=(VIDEO_OVERLAY_PATH,), daemon=True).start()
+        # Get pressed keys and landmarks from thread
+        pressed_keys = hand_thread.get_pressed_keys()
+        landmarks_list = hand_thread.get_landmarks()
 
-# ---- Multithreaded Hand Detection ----
-frame_queue = deque(maxlen=1)     # Only keep the most recent frame
-hand_data = {}
-hand_lock = threading.Lock()
+        # Handle sound + key highlighting
+        for button in buttons:
+            key = button.text
+            x, y = button.position
+            w, h = button.size
 
-def hand_detection_thread():
-    while True:
-        if frame_queue:
-            frame = frame_queue[-1]
-            hands, img_with_hands = detector.findHands(frame, draw=True)
-            with hand_lock:
-                hand_data["hands"] = hands
-                hand_data["img_with_hands"] = img_with_hands
-        time.sleep(0.01)
+            if key in pressed_keys:
+                if key not in played_keys:
+                    sound = key_sounds.get(key)
+                    if sound:
+                        idx = key_channel_index[key]
+                        key_channels[key][idx].play(sound)
+                        key_channel_index[key] = (idx + 1) % CHANNELS_PER_KEY
+                    played_keys.add(key)
 
-threading.Thread(target=hand_detection_thread, daemon=True).start()
+                # Highlight
+                overlay = np.zeros_like(img, np.uint8)
+                cv2.rectangle(overlay, (x, y), (x + w, y + h), (0, 255, 0), cv2.FILLED)
+                mask = overlay.astype(bool)
+                img[mask] = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)[mask]
+            else:
+                played_keys.discard(key)
 
-# ---- Main Rendering Loop ----
-while True:
-    success, img = cap.read()
-    if not success:
-        break
-    img = cv2.flip(img, 1)
+        # Draw fingertip landmarks from detected hands
+        for landmarks in landmarks_list:
+            for tip_id in [4, 8, 12, 16, 20]:
+                x, y = landmarks[tip_id][:2]  # Unpack only x and y
+                cv2.circle(img, (x, y), 10, (0, 0, 255), cv2.FILLED)
 
-    # Push latest frame into queue for background hand detection
-    frame_queue.append(img.copy())
+        # Overlay piano video
+        video_frame = video_stream.read()
+        if video_frame is not None:
+            img = cv2.addWeighted(img, 1.0, video_frame, 0.6, 0)
 
-    # Get detected hands from shared object
-    with hand_lock:
-        hands = hand_data.get("hands", [])
-        img = hand_data.get("img_with_hands", img)  # Fallback to original if not ready
-    # Draw piano buttons
-    img = draw_transparent_overlay(img, [
-        lambda im, b=b: (
-            cvzone.cornerRect(im, (*b.position, *b.size), 20, rt=0),
-            cv2.rectangle(im, b.position, (b.position[0]+b.size[0], b.position[1]+b.size[1]),
-                          (0, 0, 0) if 'b' in b.text else (255, 255, 255), cv2.FILLED),
-            cv2.putText(im, b.text, (b.position[0], b.position[1] + 65),
-                        cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 255), 1)
-        ) for b in buttons
-    ])
+        # FPS
+        now = time.time()
+        fps = 1 / (now - prev_time)
+        prev_time = now
+        cv2.putText(img, f"FPS: {fps:.2f}", (30, 80), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
 
-    # Check key presses using shared hand detection data
-    for button in buttons:
-        key = button.text
-        active = False
-        for hand in hands:
-            if is_pressed(hand["lmList"], button):
-                active = True
-                if key not in pressed_keys:
-                    pressed_keys.add(key)
-                    note_queue.put(key)  # Use the sound thread
-                break
-        if active:
-            img = draw_transparent_overlay(img, [
-                lambda im: (
-                    cv2.rectangle(im, button.position,
-                                  (button.position[0]+button.size[0], button.position[1]+button.size[1]),
-                                  (0, 255, 0), cv2.FILLED),
-                    cv2.putText(im, key, (button.position[0], button.position[1] + 65),
-                                cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
-                )
-            ])
-        elif key in pressed_keys:
-            pressed_keys.remove(key)
+        cv2.imshow("Virtual Piano", img)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-    # Blend overlay video frame
-    with overlay_lock:
-        current_overlay = overlay_frame.copy() if overlay_frame is not None else None
+    # Cleanup
+    hand_thread.stop()
+    video_stream.stop()
+    cap.release()
+    cv2.destroyAllWindows()
 
-    if current_overlay is not None:
-        alpha = 0.6
-        img = cv2.addWeighted(img, 1.0, current_overlay, alpha, 0)
-
-    # Display final result
-    cv2.imshow("Air Piano 🎹", img)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+# ========== Run ========== #
+if __name__ == "__main__":
+    main()
