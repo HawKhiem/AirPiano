@@ -106,7 +106,7 @@ def draw_buttons(img, button_list):
 def is_pressed(landmarks, button):
     x, y = button.position
     w, h = button.size
-    for i in [4, 8, 12, 16, 20]:
+    for i in [8]:
         px, py = CAM_WIDTH - landmarks[i][0], landmarks[i][1]
         if x < 2560 - px < x + w and y < py < y + h:
             return True
@@ -165,7 +165,7 @@ def main():
 
     detector = HandDetector(detectionCon=DETECTION_CONFIDENCE)
     buttons = [Button([42 * x + 20, 1240], key) for x, key in enumerate(keys)]
-    video_stream = VideoStream("piano_visualizer.mp4", CAM_WIDTH, CAM_HEIGHT).start()
+    video_stream = VideoStream("visualizer.mp4", CAM_WIDTH, CAM_HEIGHT).start()
     hand_thread = HandTrackingThread(cap, buttons, detector)
     hand_thread.start()
 
@@ -173,10 +173,21 @@ def main():
     played_keys = set()
 
     while True:
-        ret, img = cap.read()
+        ret, cam_frame = cap.read()
         if not ret:
             continue
-        img = cv2.flip(img, 1)
+        cam_frame = cv2.flip(cam_frame, 1)
+
+        # Start with webcam as background
+        img = cam_frame.copy()
+
+        # Overlay video on top (fully opaque)
+        video_frame = video_stream.read()
+        if video_frame is not None:
+            overlay = video_frame.copy()
+            img = cv2.addWeighted(overlay, 1.0, img, 1.0, 0)
+
+        # Draw buttons
         img = draw_buttons(img, buttons)
 
         # Get pressed keys and landmarks from thread
@@ -206,18 +217,13 @@ def main():
             else:
                 played_keys.discard(key)
 
-        # Draw fingertip landmarks from detected hands
+        # Draw fingertip landmarks
         for landmarks in landmarks_list:
-            for tip_id in [4, 8, 12, 16, 20]:
-                x, y = landmarks[tip_id][:2]  # Unpack only x and y
+            for tip_id in [8]:
+                x, y = landmarks[tip_id][:2]
                 cv2.circle(img, (x, y), 10, (0, 0, 255), cv2.FILLED)
 
-        # Overlay piano video
-        video_frame = video_stream.read()
-        if video_frame is not None:
-            img = cv2.addWeighted(img, 1.0, video_frame, 0.6, 0)
-
-        # FPS
+        # FPS display
         now = time.time()
         fps = 1 / (now - prev_time)
         prev_time = now
@@ -232,6 +238,9 @@ def main():
     video_stream.stop()
     cap.release()
     cv2.destroyAllWindows()
+
+
+
 
 # ========== Run ========== #
 if __name__ == "__main__":
