@@ -1,23 +1,35 @@
-import cv2
-import numpy as np
+import os
 import time
-import sys
+from pydub import AudioSegment
 
-# Define keys
-keys = ["Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", "Db2", "D2",
-        "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2", "C3", "Db3", "D3",
-        "Eb3", "E3", "F3", "Gb3", "G3", "Ab3", "A3", "Bb3", "B3", "C4", "Db4", "D4",
-        "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4", "C5", "Db5", "D5",
-        "Eb5", "E5", "F5", "Gb5", "G5", "Ab5", "A5", "Bb5", "B5", "C6", "Db6", "D6"]
+# ---------------- Setup ---------------- #
+sound_folder = "processedWavPianoSounds"
+output_path = "scheduled_output.wav"
 
-# Note class
+# Define piano keys
+keys = [
+    "Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", "Db2", "D2",
+    "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2", "C3", "Db3", "D3",
+    "Eb3", "E3", "F3", "Gb3", "G3", "Ab3", "A3", "Bb3", "B3", "C4", "Db4", "D4",
+    "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4", "C5", "Db5", "D5",
+    "Eb5", "E5", "F5", "Gb5", "G5", "Ab5", "A5", "Bb5", "B5", "C6", "Db6", "D6"
+]
+
+# Load all key sounds
+print("📦 Loading piano samples...")
+key_sounds = {}
+for key in keys:
+    path = os.path.join(sound_folder, f"{key}.wav")
+    if os.path.exists(path):
+        key_sounds[key] = AudioSegment.from_wav(path)
+
+# ---------------- Note Schedule ---------------- #
 class VisualNote:
     def __init__(self, key, start_time, duration):
         self.key = key
         self.start_time = start_time
         self.duration = duration
 
-# Scheduled notes
 note_schedule = [
     VisualNote("Db2", 7.43, 1.7),
     VisualNote("Db3", 7.43, 1.7),
@@ -68,7 +80,7 @@ note_schedule = [
 
     VisualNote("G3", 23.53, 0.3),
     VisualNote("Ab3", 23.8, 0.2),
-    VisualNote("A3", 23.83, 0.1),
+    VisualNote("A3", 23.87, 0.1),
 
     VisualNote("Gb1", 24.13, 1.63),
     VisualNote("Gb2", 24.13, 1.56),
@@ -1045,74 +1057,20 @@ note_schedule = [
     VisualNote("B4", 219.57, 0.67),
     VisualNote("Db5", 219.03, 1.23),
 ]
-# END
+
+# ---------------- Mixing Logic ---------------- #
+print("🎼 Building audio composition...")
+max_time = max(note.start_time + note.duration for note in note_schedule)
+total_duration_ms = int((max_time + 2) * 1000)
+final_audio = AudioSegment.silent(duration=total_duration_ms)
+
 for note in note_schedule:
-    note.duration = 0.1
-# Define button class (keys)
-class Button:
-    def __init__(self, position, text, size=(40, 200)):
-        self.position = position
-        self.text = text
-        self.size = size
+    if note.key in key_sounds:
+        start_ms = int(note.start_time * 1000)
+        sample = key_sounds[note.key]
+        final_audio = final_audio.overlay(sample, position=start_ms)
+        print(f"🔊 Scheduled {note.key} at {note.start_time:.2f}s")
 
-buttons = [Button([42 * i + 20, 1240], key) for i, key in enumerate(keys)]
-
-# Initialize video writer
-frame_width, frame_height = 2560, 1440
-fps = 30
-duration = 2
-output_path = "visualizer_v01.mp4"
-out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
-
-total_frames = int(duration * fps)
-bar_length = 40  # length of the progress bar
-
-# Render each frame
-start_time = time.time()
-for frame_idx in range(total_frames):
-    current_time = frame_idx / fps
-    img = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
-
-    # Draw keys
-    for button in buttons:
-        x, y = button.position
-        w, h = button.size
-        cv2.rectangle(img, (x, y), (x + w, y + h), (255, 255, 255), 2)
-        cv2.putText(img, button.text, (x + 5, y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-    # Draw falling notes
-    for note in note_schedule:
-        time_to_note = note.start_time - current_time
-        if time_to_note < -note.duration:
-            continue
-
-        pixels_per_second = 200
-        y_offset = int(time_to_note * pixels_per_second)
-        height = int(note.duration * pixels_per_second)
-
-        button = next((b for b in buttons if b.text == note.key), None)
-        if button:
-            x, y = button.position
-            w, _ = button.size
-            top_left = (x, y - height - y_offset)
-            bottom_right = (x + w, y - y_offset)
-            overlay = img.copy()
-            cv2.rectangle(overlay, top_left, bottom_right, (255, 0, 0), -1)
-            alpha = 0.6
-            cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
-
-    out.write(img)
-
-    # ---- Progress Bar Output ----
-    progress = (frame_idx + 1) / total_frames
-    block = int(round(bar_length * progress))
-    text = f"\rRendering Video: [{'#' * block + '-' * (bar_length - block)}] {progress*100:.1f}%"
-    sys.stdout.write(text)
-    sys.stdout.flush()
-
-# Final message
-print("\n✅ Video rendering complete.")
-
-# Cleanup
-out.release()
-print(f"Video saved to {output_path}")
+# ---------------- Export ---------------- #
+final_audio.export(output_path, format="wav")
+print(f"\n✅ Export complete! File saved as: {output_path}")

@@ -5,7 +5,7 @@ folder_path = "wavPianoSounds"
 output_path = "processedWavPianoSounds"
 os.makedirs(output_path, exist_ok=True)
 
-cut_duration = 80  # Cut 150 ms from start
+cut_duration = 50  # Cut 150 ms from start
 fade_duration = 20  # Fade-in duration (in ms)
 
 for filename in os.listdir(folder_path):
